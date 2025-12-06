@@ -5,6 +5,7 @@ import numpy as np
 import joblib
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
 
 chat_session = None
 load_dotenv()
@@ -16,8 +17,11 @@ try:
     chat_session = gemini_client.chats.create(
         model=GEMINI_MODEL_NAME,
         config=genai.types.GenerateContentConfig(
-            system_instruction="You are an expert system in the field of loans and credit risk. Your primary task is to provide concise, accurate, and helpful answers in based on the conversation context.")
-    )    
+            system_instruction=
+            "You are an expert system in the field of loans and credit risk. Your primary task is to provide concise, accurate, and helpful answers in based on the conversation context."
+            "If you receive a message starting with 'SYSTEM LOG:', read the information and store it in context, but **do not generate a response** to the user for that log message."
+        )
+    )
 except Exception as e:
     gemini_client = None
 
@@ -124,6 +128,33 @@ def index():
                 prediction_result = "High Risk" if prediction_class == 1 else "Low Risk"
                 prob = f"{probability:.2%}"
                 raw = f"{raw_prediction:.4f}"
+                
+                if chat_session:
+                    log_message = (
+                        f"SYSTEM LOG: User data received. "
+                        f"Inputs: Loan Credit={input_data['AMT_CREDIT']}, "
+                        f"Income={input_data['AMT_INCOME_TOTAL']}, "
+                        f"Ext. Score 3={input_data['EXT_SOURCE_3']}, "
+                        f"Ext. Score 2={input_data['EXT_SOURCE_2']}, "
+                        f"Years Employed={input_data['YEARS_EMPLOYED']} years, "
+                        f"Years ID Publish={input_data['YEARS_ID_PUBLISH']} years, "
+                        f"Years Registration={input_data['YEARS_REGISTRATION']} years, "
+                        f"Years Birth={input_data['YEARS_BIRTH']} years, "
+                        f"Annuity={input_data['AMT_ANNUITY']}, "
+                        f"Goods Price={input_data['AMT_GOODS_PRICE']}, "
+                        f"Organization Type={input_data['ORGANIZATION_TYPE']}, "
+                        f"Occupation Type={input_data['OCCUPATION_TYPE']}, "
+                        f"Family Members={input_data['CNT_FAM_MEMBERS']}, "
+                        f"Region Population Relative={input_data['REGION_POPULATION_RELATIVE']}, "
+                        f"Own Car Age={input_data['OWN_CAR_AGE']}, "
+                        f"**RESULT:** {prediction_result} with {prob} probability of default. "
+                        f"Please acknowledge this data but **do not respond** to the user at this time."
+                    )
+                    
+                    try:
+                        chat_session.send_message(log_message) 
+                    except Exception as e:
+                        pass
 
             except Exception as e:
                 error_msg = str(e)
