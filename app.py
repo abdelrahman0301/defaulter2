@@ -1,159 +1,125 @@
+import os
 from flask import Flask, render_template, request
 import pandas as pd
 import numpy as np
 import joblib
-import warnings
-
-warnings.filterwarnings('ignore')
 
 app = Flask(__name__)
 
-class LoanDefaultPredictor:
-    def __init__(self):
-        self.model = None
-        self.features = None
-        self.load_model()
-    
-    def load_model(self):
-        try:
-            self.model = joblib.load('LoanDefaulter_LightGBM.pkl')
-            
-            if hasattr(self.model, 'feature_name_'):
-                self.features = self.model.feature_name_
-            else:
-                self.features = [
-                    'ORGANIZATION_TYPE', 'EXT_SOURCE_3', 'EXT_SOURCE_2', 'YEARS_ID_PUBLISH', 
-                    'YEARS_EMPLOYED', 'YEARS_REGISTRATION', 'YEARS_BIRTH', 'AMT_ANNUITY', 
-                    'SK_ID_CURR', 'REGION_POPULATION_RELATIVE', 'YEARS_LAST_PHONE_CHANGE', 
-                    'PREV_SELLERPLACE_AREA_MEAN', 'PREV_YEARS_DECISION_MEAN', 'AMT_CREDIT', 
-                    'PREV_HOUR_APPR_PROCESS_START_MEAN', 'PREV_YEARS_FIRST_DUE_MEAN', 
-                    'PREV_CNT_PAYMENT_MAX', 'AMT_INCOME_TOTAL', 'AMT_GOODS_PRICE', 
-                    'PREV_AMT_ANNUITY_MEAN', 'PREV_YEARS_LAST_DUE_1ST_VERSION_MEAN', 
-                    'PREV_AMT_ANNUITY_MEDIAN', 'PREV_SK_ID_PREV_COUNT', 
-                    'PREV_YEARS_TERMINATION_MEAN', 'PREV_AMT_CREDIT_MEDIAN', 
-                    'AMT_REQ_CREDIT_BUREAU_YEAR', 'PREV_YEARS_LAST_DUE_MEAN', 
-                    'OCCUPATION_TYPE', 'PREV_AMT_APPLICATION_MEDIAN', 
-                    'PREV_PRODUCT_COMBINATION_<LAMBDA>', 'PREV_AMT_CREDIT_MEAN', 
-                    'CNT_FAM_MEMBERS', 'OBS_30_CNT_SOCIAL_CIRCLE', 'OWN_CAR_AGE', 
-                    'PREV_AMT_APPLICATION_MEAN', 'PREV_AMT_GOODS_PRICE_MEDIAN', 
-                    'HOUR_APPR_PROCESS_START', 'PREV_AMT_GOODS_PRICE_MEAN', 
-                    'PREV_YEARS_FIRST_DRAWING_MEAN', 'PREV_SK_ID_CURR_FIRST', 
-                    'OBS_60_CNT_SOCIAL_CIRCLE', 'PREV_NAME_GOODS_CATEGORY_<LAMBDA>', 
-                    'PREV_NFLAG_INSURED_ON_APPROVAL_MAX', 'WEEKDAY_APPR_PROCESS_START', 
+MODEL_PATH = 'LoanDefaulter_LightGBM.pkl'
+model = None
+
+try:
+    model = joblib.load(MODEL_PATH)
+    print("Model loaded successfully.")
+except FileNotFoundError:
+    print(f"Error: '{MODEL_PATH}' not found. Please place the .pkl file in the root directory.")
+except Exception as e:
+    print(f"Error loading model: {e}")
+
+def get_val(value, type_func, default=0):
+    try:
+        return type_func(value)
+    except (ValueError, TypeError):
+        return default
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    prediction_result = None
+    prob = None
+    raw = None
+    error_msg = None
+
+    if request.method == 'POST':
+        if not model:
+            error_msg = "Model not loaded. Please check server logs."
+        else:
+            try:
+                input_data = {
+                    'ORGANIZATION_TYPE': request.form.get('ORGANIZATION_TYPE'),
+                    'EXT_SOURCE_3': get_val(request.form.get('EXT_SOURCE_3'), float),
+                    'EXT_SOURCE_2': get_val(request.form.get('EXT_SOURCE_2'), float),
+                    'YEARS_ID_PUBLISH': get_val(request.form.get('YEARS_ID_PUBLISH'), float),
+                    'YEARS_EMPLOYED': get_val(request.form.get('YEARS_EMPLOYED'), float),
+                    'YEARS_REGISTRATION': get_val(request.form.get('YEARS_REGISTRATION'), float),
+                    'YEARS_BIRTH': get_val(request.form.get('YEARS_BIRTH'), float),
+                    'AMT_ANNUITY': get_val(request.form.get('AMT_ANNUITY'), float),
+                    'SK_ID_CURR': get_val(request.form.get('SK_ID_CURR'), int),
+                    'REGION_POPULATION_RELATIVE': get_val(request.form.get('REGION_POPULATION_RELATIVE'), float),
+                    'YEARS_LAST_PHONE_CHANGE': get_val(request.form.get('YEARS_LAST_PHONE_CHANGE'), float),
+                    'PREV_SELLERPLACE_AREA_MEAN': get_val(request.form.get('PREV_SELLERPLACE_AREA_MEAN'), float),
+                    'PREV_YEARS_DECISION_MEAN': get_val(request.form.get('PREV_YEARS_DECISION_MEAN'), float),
+                    'AMT_CREDIT': get_val(request.form.get('AMT_CREDIT'), float),
+                    'PREV_HOUR_APPR_PROCESS_START_MEAN': get_val(request.form.get('PREV_HOUR_APPR_PROCESS_START_MEAN'), float),
+                    'PREV_YEARS_FIRST_DUE_MEAN': get_val(request.form.get('PREV_YEARS_FIRST_DUE_MEAN'), float),
+                    'PREV_CNT_PAYMENT_MAX': get_val(request.form.get('PREV_CNT_PAYMENT_MAX'), float),
+                    'AMT_INCOME_TOTAL': get_val(request.form.get('AMT_INCOME_TOTAL'), float),
+                    'AMT_GOODS_PRICE': get_val(request.form.get('AMT_GOODS_PRICE'), float),
+                    'PREV_AMT_ANNUITY_MEAN': get_val(request.form.get('PREV_AMT_ANNUITY_MEAN'), float),
+                    'PREV_YEARS_LAST_DUE_1ST_VERSION_MEAN': get_val(request.form.get('PREV_YEARS_LAST_DUE_1ST_VERSION_MEAN'), float),
+                    'PREV_AMT_ANNUITY_MEDIAN': get_val(request.form.get('PREV_AMT_ANNUITY_MEDIAN'), float),
+                    'PREV_SK_ID_PREV_COUNT': get_val(request.form.get('PREV_SK_ID_PREV_COUNT'), float),
+                    'PREV_YEARS_TERMINATION_MEAN': get_val(request.form.get('PREV_YEARS_TERMINATION_MEAN'), float),
+                    'PREV_AMT_CREDIT_MEDIAN': get_val(request.form.get('PREV_AMT_CREDIT_MEDIAN'), float),
+                    'AMT_REQ_CREDIT_BUREAU_YEAR': get_val(request.form.get('AMT_REQ_CREDIT_BUREAU_YEAR'), float),
+                    'PREV_YEARS_LAST_DUE_MEAN': get_val(request.form.get('PREV_YEARS_LAST_DUE_MEAN'), float),
+                    'OCCUPATION_TYPE': request.form.get('OCCUPATION_TYPE'),
+                    'PREV_AMT_APPLICATION_MEDIAN': get_val(request.form.get('PREV_AMT_APPLICATION_MEDIAN'), float),
+                    'PREV_PRODUCT_COMBINATION_<LAMBDA>': request.form.get('PREV_PRODUCT_COMBINATION_LAMBDA'),
+                    'PREV_AMT_CREDIT_MEAN': get_val(request.form.get('PREV_AMT_CREDIT_MEAN'), float),
+                    'CNT_FAM_MEMBERS': get_val(request.form.get('CNT_FAM_MEMBERS'), float),
+                    'OBS_30_CNT_SOCIAL_CIRCLE': get_val(request.form.get('OBS_30_CNT_SOCIAL_CIRCLE'), float),
+                    'OWN_CAR_AGE': get_val(request.form.get('OWN_CAR_AGE'), float),
+                    'PREV_AMT_APPLICATION_MEAN': get_val(request.form.get('PREV_AMT_APPLICATION_MEAN'), float),
+                    'PREV_AMT_GOODS_PRICE_MEDIAN': get_val(request.form.get('PREV_AMT_GOODS_PRICE_MEDIAN'), float),
+                    'HOUR_APPR_PROCESS_START': get_val(request.form.get('HOUR_APPR_PROCESS_START'), int),
+                    'PREV_AMT_GOODS_PRICE_MEAN': get_val(request.form.get('PREV_AMT_GOODS_PRICE_MEAN'), float),
+                    'PREV_YEARS_FIRST_DRAWING_MEAN': get_val(request.form.get('PREV_YEARS_FIRST_DRAWING_MEAN'), float),
+                    'PREV_SK_ID_CURR_FIRST': get_val(request.form.get('PREV_SK_ID_CURR_FIRST'), float),
+                    'OBS_60_CNT_SOCIAL_CIRCLE': get_val(request.form.get('OBS_60_CNT_SOCIAL_CIRCLE'), float),
+                    'PREV_NAME_GOODS_CATEGORY_<LAMBDA>': request.form.get('PREV_NAME_GOODS_CATEGORY_LAMBDA'),
+                    'PREV_NFLAG_INSURED_ON_APPROVAL_MAX': get_val(request.form.get('PREV_NFLAG_INSURED_ON_APPROVAL_MAX'), float),
+                    'WEEKDAY_APPR_PROCESS_START': request.form.get('WEEKDAY_APPR_PROCESS_START'),
+                    'PREV_WEEKDAY_APPR_PROCESS_START_<LAMBDA>': request.form.get('PREV_WEEKDAY_APPR_PROCESS_START_LAMBDA')
+                }
+
+                df = pd.DataFrame([input_data])
+
+                categorical_cols = [
+                    'ORGANIZATION_TYPE', 
+                    'OCCUPATION_TYPE', 
+                    'PREV_PRODUCT_COMBINATION_<LAMBDA>',
+                    'PREV_NAME_GOODS_CATEGORY_<LAMBDA>',
+                    'WEEKDAY_APPR_PROCESS_START',
                     'PREV_WEEKDAY_APPR_PROCESS_START_<LAMBDA>'
                 ]
-        except FileNotFoundError:
-            print("❌ Model file 'LoanDefaulter_LightGBM.pkl' not found.")
-            self.model = None
-    
-    def convert_to_model_format(self, inputs):
-        model_inputs = inputs.copy()
-        time_features = [
-            'YEARS_BIRTH', 'YEARS_EMPLOYED', 'YEARS_REGISTRATION', 
-            'YEARS_ID_PUBLISH', 'YEARS_LAST_PHONE_CHANGE'
-        ]
-        for feat in time_features:
-            if feat in model_inputs:
-                model_inputs[feat] = -abs(float(model_inputs[feat]))
-        return model_inputs
-    
-    def predict(self, input_data):
-        if self.model is None:
-            return 0.5, False, "Model not loaded"
 
-        try:
-            ordered_data = [input_data.get(f, 0) for f in self.features]
-            input_df = pd.DataFrame([ordered_data], columns=self.features)
+                for col in categorical_cols:
+                    df[col] = df[col].astype('category')
 
-            input_df = input_df.infer_objects() 
-            
-            string_columns = input_df.select_dtypes(include=['object']).columns
-
-            def encode_as_int(x):
-                return abs(hash(str(x))) % 10_000_000  
-
-            for col in string_columns:
-                input_df[col] = input_df[col].apply(encode_as_int)
-
-            X = input_df.to_numpy(dtype=float)
-
-            default_prob = self.model.predict(X)[0]
-            return default_prob, default_prob > 0.5, None
-
-        except Exception as e:
-            import traceback
-            print(traceback.format_exc())
-            return 0.5, False, str(e)
-
-predictor = LoanDefaultPredictor()
-
-@app.route('/', methods=['GET'])
-def index():
-    return render_template('index.html')
-
-@app.route('/predict', methods=['POST'])
-def predict():
-    if request.method == 'POST':
-        
-        try:
-            user_data = {
-                'ORGANIZATION_TYPE': request.form.get('ORGANIZATION_TYPE'),
-                'EXT_SOURCE_3': float(request.form.get('EXT_SOURCE_3')),
-                'EXT_SOURCE_2': float(request.form.get('EXT_SOURCE_2')),
-                'YEARS_ID_PUBLISH': float(request.form.get('YEARS_ID_PUBLISH')), 
-                'YEARS_EMPLOYED': float(request.form.get('YEARS_EMPLOYED')),     
-                'YEARS_REGISTRATION': float(request.form.get('YEARS_REGISTRATION')), 
-                'YEARS_BIRTH': float(request.form.get('YEARS_BIRTH')),         
-                'AMT_ANNUITY': float(request.form.get('AMT_ANNUITY')),
-                'SK_ID_CURR': float(request.form.get('SK_ID_CURR')),
-                'REGION_POPULATION_RELATIVE': float(request.form.get('REGION_POPULATION_RELATIVE')),
-                'YEARS_LAST_PHONE_CHANGE': float(request.form.get('YEARS_LAST_PHONE_CHANGE')), 
-                'PREV_SELLERPLACE_AREA_MEAN': float(request.form.get('PREV_SELLERPLACE_AREA_MEAN')),
-                'PREV_YEARS_DECISION_MEAN': float(request.form.get('PREV_YEARS_DECISION_MEAN')),
-                'AMT_CREDIT': float(request.form.get('AMT_CREDIT')),
-                'PREV_HOUR_APPR_PROCESS_START_MEAN': float(request.form.get('PREV_HOUR_APPR_PROCESS_START_MEAN')),
-                'PREV_YEARS_FIRST_DUE_MEAN': float(request.form.get('PREV_YEARS_FIRST_DUE_MEAN')),
-                'PREV_CNT_PAYMENT_MAX': float(request.form.get('PREV_CNT_PAYMENT_MAX')),
-                'AMT_INCOME_TOTAL': float(request.form.get('AMT_INCOME_TOTAL')),
-                'AMT_GOODS_PRICE': float(request.form.get('AMT_GOODS_PRICE')),
-                'PREV_AMT_ANNUITY_MEAN': float(request.form.get('PREV_AMT_ANNUITY_MEAN')),
-                'PREV_YEARS_LAST_DUE_1ST_VERSION_MEAN': float(request.form.get('PREV_YEARS_LAST_DUE_1ST_VERSION_MEAN')),
-                'PREV_AMT_ANNUITY_MEDIAN': float(request.form.get('PREV_AMT_ANNUITY_MEDIAN')),
-                'PREV_SK_ID_PREV_COUNT': float(request.form.get('PREV_SK_ID_PREV_COUNT')),
-                'PREV_YEARS_TERMINATION_MEAN': float(request.form.get('PREV_YEARS_TERMINATION_MEAN')),
-                'PREV_AMT_CREDIT_MEDIAN': float(request.form.get('PREV_AMT_CREDIT_MEDIAN')),
-                'AMT_REQ_CREDIT_BUREAU_YEAR': float(request.form.get('AMT_REQ_CREDIT_BUREAU_YEAR')),
-                'PREV_YEARS_LAST_DUE_MEAN': float(request.form.get('PREV_YEARS_LAST_DUE_MEAN')),
-                'OCCUPATION_TYPE': request.form.get('OCCUPATION_TYPE'),
-                'PREV_AMT_APPLICATION_MEDIAN': float(request.form.get('PREV_AMT_APPLICATION_MEDIAN')),
-                'PREV_PRODUCT_COMBINATION_<LAMBDA>': float(request.form.get('PREV_PRODUCT_COMBINATION_<LAMBDA>')),
-                'PREV_AMT_CREDIT_MEAN': float(request.form.get('PREV_AMT_CREDIT_MEAN')),
-                'CNT_FAM_MEMBERS': float(request.form.get('CNT_FAM_MEMBERS')),
-                'OBS_30_CNT_SOCIAL_CIRCLE': float(request.form.get('OBS_30_CNT_SOCIAL_CIRCLE')),
-                'OWN_CAR_AGE': float(request.form.get('OWN_CAR_AGE')),
-                'PREV_AMT_APPLICATION_MEAN': float(request.form.get('PREV_AMT_APPLICATION_MEAN')),
-                'PREV_AMT_GOODS_PRICE_MEDIAN': float(request.form.get('PREV_AMT_GOODS_PRICE_MEDIAN')),
-                'HOUR_APPR_PROCESS_START': float(request.form.get('HOUR_APPR_PROCESS_START')),
-                'PREV_AMT_GOODS_PRICE_MEAN': float(request.form.get('PREV_AMT_GOODS_PRICE_MEAN')),
-                'PREV_YEARS_FIRST_DRAWING_MEAN': float(request.form.get('PREV_YEARS_FIRST_DRAWING_MEAN')),
-                'PREV_SK_ID_CURR_FIRST': float(request.form.get('PREV_SK_ID_CURR_FIRST')),
-                'OBS_60_CNT_SOCIAL_CIRCLE': float(request.form.get('OBS_60_CNT_SOCIAL_CIRCLE')),
-                'PREV_NAME_GOODS_CATEGORY_<LAMBDA>': float(request.form.get('PREV_NAME_GOODS_CATEGORY_<LAMBDA>')),
-                'PREV_NFLAG_INSURED_ON_APPROVAL_MAX': float(request.form.get('PREV_NFLAG_INSURED_ON_APPROVAL_MAX')),
-                'WEEKDAY_APPR_PROCESS_START': request.form.get('WEEKDAY_APPR_PROCESS_START'),
-                'PREV_WEEKDAY_APPR_PROCESS_START_<LAMBDA>': float(request.form.get('PREV_WEEKDAY_APPR_PROCESS_START_<LAMBDA>'))
-            }
-            
-            final_input = predictor.convert_to_model_format(user_data)
-            prob, is_default, error = predictor.predict(final_input)
-            
-            if error:
-                return render_template('result.html', error=error)
+                raw_prediction = model.predict(df, raw_score=True)[0]
                 
-            return render_template('result.html', prob=round(prob*100, 2), is_default=is_default)
+                probability = 1 / (1 + np.exp(-raw_prediction))
+                
+                prediction_class = 1 if probability > 0.5 else 0
+                
+                prediction_result = "High Risk" if prediction_class == 1 else "Low Risk"
+                prob = f"{probability:.2%}"
+                raw = f"{raw_prediction:.4f}"
 
-        except Exception as e:
-            return render_template('result.html', error=f"Input Error: {str(e)}")
+            except Exception as e:
+                error_msg = str(e)
 
-if __name__ == "__main__":
+    lists = {
+        'occupation': ['Laborers', 'Accountants', 'Managers', 'Sales staff', 'Drivers', 'Core staff', 'Medicine staff', 'High skill tech staff', 'Secretaries', 'Waiters/barmen staff', 'Cooking staff', 'Realty agents', 'Cleaning staff', 'Low-skill Laborers', 'Private service staff', 'Security staff', 'HR staff', 'IT staff'],
+        'organization': ['Business Entity Type 3', 'Government', 'Other', 'Trade: type 7', 'Business Entity Type 2', 'Security Ministries', 'Self-employed', 'Construction', 'Transport: type 4', 'Trade: type 2', 'Housing', 'Industry: type 3', 'Military', 'Trade: type 3', 'Business Entity Type 1', 'Industry: type 2', 'School', 'Kindergarten', 'Industry: type 9', 'Medicine', 'Emergency', 'Industry: type 11', 'Police', 'Industry: type 5', 'Industry: type 10', 'Postal', 'Industry: type 4', 'Agriculture', 'Bank', 'Industry: type 12', 'University', 'Transport: type 2', 'Services', 'Transport: type 3', 'Industry: type 7', 'Restaurant', 'Telecom', 'Security', 'Mobile', 'Industry: type 1', 'Cleaning', 'Insurance', 'Electricity', 'Religion', 'Advertising', 'Trade: type 1', 'Legal Services', 'Realtor', 'Trade: type 6', 'Culture', 'Hotel', 'Transport: type 1', 'Industry: type 6', 'Industry: type 13', 'Industry: type 8', 'Trade: type 4', 'Trade: type 5'],
+        'weekday': ['WEDNESDAY', 'MONDAY', 'SUNDAY', 'THURSDAY', 'SATURDAY', 'FRIDAY', 'TUESDAY'],
+        'prev_prod': ['POS other with interest', 'POS mobile without interest', 'POS household with interest', 'POS industry without interest', 'Cash X-Sell: high', 'POS industry with interest', 'Cash', 'Cash Street: low', 'POS mobile with interest', 'Cash Street: high', 'Card X-Sell', 'Cash X-Sell: low', 'Card Street', 'Cash X-Sell: middle', 'POS household without interest', 'Cash Street: middle', 'POS others without interest'],
+        'prev_goods': ['Vehicles', 'Mobile', 'Audio/Video', 'Furniture', 'XNA', 'Clothing and Accessories', 'Computers', 'Consumer Electronics', 'Auto Accessories', 'Medicine', 'Photo / Cinema Equipment', 'Office Appliances', 'Jewelry', 'Construction Materials', 'Gardening', 'Homewares', 'Medical Supplies', 'Tourism', 'Insurance', 'Sport and Leisure', 'Other', 'Additional Service', 'Fitness', 'Education', 'Direct Sales'],
+        'prev_weekday': ['SATURDAY', 'FRIDAY', 'TUESDAY', 'MONDAY', 'SUNDAY', 'WEDNESDAY', 'THURSDAY']
+    }
+
+    return render_template('index.html', result=prediction_result, prob=prob, raw=raw, error=error_msg, lists=lists)
+
+if __name__ == '__main__':
     app.run(debug=True)
