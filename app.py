@@ -3,6 +3,24 @@ from flask import Flask, render_template, request
 import pandas as pd
 import numpy as np
 import joblib
+from dotenv import load_dotenv
+from google import genai
+
+chat_session = None
+load_dotenv()
+try:
+    api_key = os.getenv("GEMINI_API_KEY")
+    gemini_client = genai.Client(api_key=api_key)
+    GEMINI_MODEL_NAME = 'gemini-2.5-flash'
+    
+    chat_session = gemini_client.chats.create(
+        model=GEMINI_MODEL_NAME,
+        config=genai.types.GenerateContentConfig(
+            system_instruction="You are an expert system in the field of loans and credit risk. Your primary task is to provide concise, accurate, and helpful answers in based on the conversation context.")
+    )    
+except Exception as e:
+    gemini_client = None
+
 
 app = Flask(__name__)
 
@@ -121,5 +139,23 @@ def index():
 
     return render_template('index.html', result=prediction_result, prob=prob, raw=raw, error=error_msg, lists=lists)
 
+
+@app.route('/chat_api', methods=['POST'])
+def chat_api_route():
+    from flask import jsonify 
+
+    if not chat_session:
+        return jsonify({"reply": "Sorry, the chatbot is currently unavailable. (Session not initialized)"}), 503
+    user_message = request.json.get('message', '')
+
+    if not user_message:
+        return jsonify({"reply": "Please send a message."}), 400    
+    try:
+        response = chat_session.send_message(user_message)
+        reply = response.text
+    except Exception as e:
+        reply = "An error occurred while connecting to the model. Please try again later."
+
+    return jsonify({"reply": reply})
 if __name__ == '__main__':
     app.run(debug=True)

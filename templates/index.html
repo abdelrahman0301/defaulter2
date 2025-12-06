@@ -11,6 +11,130 @@
         .result-box { margin-bottom: 20px; padding: 20px; border-radius: 10px; }
         .high-risk { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
         .low-risk { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        #chat-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #0d6efd;
+            color: white;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 28px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            z-index: 999;
+        }
+
+        #chat-box {
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            width: 320px;
+            height: 420px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            display: none;
+            flex-direction: column;
+            z-index: 999;
+        }
+
+        #chat-header {
+            background: #0d6efd;
+            color: white;
+            padding: 10px;
+            font-size: 18px;
+            border-top-left-radius: 15px;
+            border-top-right-radius: 15px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        #chat-messages {
+            padding: 10px;
+            flex-grow: 1;
+            overflow-y: auto;
+            font-size: 15px;
+        }
+
+        #chat-input-area {
+            display: flex;
+            border-top: 1px solid #ddd;
+        }
+
+        #chat-input {
+            flex-grow: 1;
+            padding: 8px;
+            border: none;
+            outline: none;
+            border-bottom-left-radius: 15px;
+            border-bottom-right-radius: 15px;
+        }
+
+        #chat-input-area button {
+            width: 70px;
+            background: #0d6efd;
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-bottom-right-radius: 15px;
+        }
+
+        #close-chat {
+            cursor: pointer;
+            font-size: 20px;
+        }
+
+        .chat-message {
+            padding: 8px 12px;
+            border-radius: 15px;
+            margin-bottom: 10px;
+            max-width: 85%;
+            word-wrap: break-word;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+
+        .user-bubble {
+            background-color: #0d6efd;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 2px;
+        }
+
+        .bot-bubble {
+            background-color: #e9ecef;
+            color: #212529;
+            margin-right: auto;
+            border-bottom-left-radius: 2px;
+        }
+
+        #quick-suggestions {
+            padding: 5px 10px;
+            border-top: 1px solid #eee;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .quick-reply {
+            background-color: #e9ecef;
+            color: #495057;
+            border: 1px solid #ced4da;
+            border-radius: 20px;
+            padding: 5px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            flex-shrink: 0;
+        }
+
+        .quick-reply:hover {
+            background-color: #dee2e6;
+        }
     </style>
 </head>
 <body>
@@ -217,6 +341,103 @@
 
     </form>
 </div>
+
+<div id="chat-button" onclick="toggleChat()">
+    <img src="{{ url_for('static', filename='img/chat-bot-icon.png') }}" alt="Chat Icon" width="45" height="45">
+</div>
+
+<div id="chat-box">
+    <div id="chat-header">
+        💵 Loan Chatbot
+        <span id="close-chat" onclick="toggleChat()">×</span>
+    </div>
+
+    <div id="chat-messages"></div>
+    
+    <div id="quick-suggestions">
+        <button class="quick-reply" onclick="sendQuickReply('What variables affect loan risk?')">
+            What variables affect loan risk?
+        </button>
+        
+        <button class="quick-reply" onclick="sendQuickReply('What is the expected default rate for next year?')">
+            Expected Default Rate
+        </button>
+    </div>
+    
+    <div id="chat-input-area">
+        <input type="text" id="chat-input" placeholder="Enter your message...">
+        <button onclick="sendMessage()">Send</button>
+    </div>
+</div>
+
+<script>
+    function toggleChat() {
+        const chatBox = document.getElementById('chat-box');
+        if (chatBox.style.display === 'flex') {
+            chatBox.style.display = 'none';
+        } else {
+            chatBox.style.display = 'flex';
+            document.getElementById('chat-input').focus(); 
+        }
+    }
+
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function sendQuickReply(message) {
+        const input = document.getElementById('chat-input');
+        input.value = message;
+        sendMessage();
+    }
+
+    async function sendMessage() {
+        const input = document.getElementById('chat-input');
+        const message = input.value.trim();
+        if (!message) return;
+
+        const messagesDiv = document.getElementById('chat-messages');
+
+        const userMessage = document.createElement('div');
+        userMessage.textContent = message;
+        userMessage.className = 'chat-message user-bubble';
+        messagesDiv.appendChild(userMessage);
+        input.value = '';
+
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        await delay(1500);
+        const botMessage = document.createElement('div');
+        botMessage.textContent = "typing...";
+        botMessage.className = 'chat-message bot-bubble';
+        messagesDiv.appendChild(botMessage);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+        try {
+            const response = await fetch("/chat_api", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({message: message})
+            });
+            const data = await response.json();
+            
+            botMessage.textContent = data.reply; 
+
+        } catch (error) {
+            botMessage.textContent = "Error connecting to server or API.";
+        }
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const chatInput = document.getElementById('chat-input');
+        chatInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') { 
+                event.preventDefault();
+                sendMessage();
+            }
+        });
+    });
+</script>
 
 </body>
 </html>
