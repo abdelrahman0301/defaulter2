@@ -7,19 +7,20 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
+global chat_session
 chat_session = None
 load_dotenv()
 try:
     api_key = os.getenv("GEMINI_API_KEY")
     gemini_client = genai.Client(api_key=api_key)
     GEMINI_MODEL_NAME = 'gemini-2.5-flash'
-    
     chat_session = gemini_client.chats.create(
         model=GEMINI_MODEL_NAME,
         config=genai.types.GenerateContentConfig(
             system_instruction=
             "You are an expert system in the field of loans and credit risk. Your primary task is to provide concise, accurate, and helpful answers in based on the conversation context."
             "If you receive a message starting with 'SYSTEM LOG:', read the information and store it in context, but **do not generate a response** to the user for that log message."
+            "Be **brief and direct** in your answers. **Do not volunteer additional or analytical information** unless explicitly requested by the user."
         )
     )
 except Exception as e:
