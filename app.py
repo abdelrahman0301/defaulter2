@@ -126,7 +126,7 @@ def index():
                 
                 prediction_class = 1 if probability > 0.5 else 0
                 
-                prediction_result = "High Risk" if prediction_class == 1 else "Low Risk"
+                prediction_result = "High Risk (Defaulter)" if prediction_class == 1 else "Low Risk (Non-Defaulter)"
                 prob = f"{probability:.2%}"
                 raw = f"{raw_prediction:.4f}"
                 
