@@ -132,7 +132,7 @@ def index():
                 
                 if chat_session:
                     log_message = (
-                        f"SYSTEM LOG: User data received. "
+                        f"SYSTEM LOG: New user loan data received. "
                         f"Inputs: Loan Credit={input_data['AMT_CREDIT']}, "
                         f"Income={input_data['AMT_INCOME_TOTAL']}, "
                         f"Ext. Score 3={input_data['EXT_SOURCE_3']}, "
@@ -148,6 +148,7 @@ def index():
                         f"Family Members={input_data['CNT_FAM_MEMBERS']}, "
                         f"Region Population Relative={input_data['REGION_POPULATION_RELATIVE']}, "
                         f"Own Car Age={input_data['OWN_CAR_AGE']}, "
+                        f"ID={input_data['SK_ID_CURR']}, "
                         f"**RESULT:** {prediction_result} with {prob} probability of default. "
                         f"Please acknowledge this data but **do not respond** to the user at this time."
                     )
